@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+            
+        <title>Likelihood-based and Likelihood-free Unsupervised Learning</title>
+
+<!--
+The increasing amount of available data and the relatively high labeling-costs are bringing unsupervised learning (back) into the spotlight. After this presentation, the audience will have a better (or different) understanding of the approaches for unsupervised learning, including recent advances around generative adversarial networks (GANs).
+
+In the talk, we'll start from a probabilistic formulation of unsupervised learning, and will draw parallels and links with other related formulations that include hierarchical probabilistic models, auto-encoders and generative adversarial networks. We will successively make the focus on specific facets of the problem to better understand the properties of these formulations: how they are optimized, how they can learn deep representations, how they can handle spatial or temporal data, how much semantics they capture, etc.
+
+While being ill-defined, unsupervised learning aims at extracting structure, knowledge, patterns, latent properties or intermediate representations from a dataset without any labels. Here, we focus on automatically finding hidden/latent representations and patterns from data: the generic case will be used as much as possible but we will also do illustrations with "topic models" and their convolutional and hierarchical variants.
+
+-->
+
+        <meta name="author" content="Rémi Emonet">
+        <meta name="venue" content="SaintéLyon Deep Learning workshop">
+        <meta name="date" content="2017-01-04">
+        <meta name="affiliation" content="Université Jean Monnet − Saint Étienne  Laboratoire Hubert Curien">
+ 
+        <style type="text/css">
+
+            body.blanked { opacity: 0 !important; }
+            
+.highlight:not(.focuses) { color: red !important; }
+.focuses:not(.highlight) li {font-size: 8px;}
+
+.title-slide h2, .title-slide ul {
+    box-shadow: 0px 0px 20px rgba(255,255,255, 0.8);
+    width: 600px;
+    font-size: 25px;
+}
+.title-slide ul {
+   position: absolute; right: 30px; left: auto; bottom: 30px;
+   width: 450px;
+}
+
+.infobox>ul>li {
+    display: block;
+}
+.infobox>ul {
+    font-size: 18px;
+    position: absolute;
+    right: 0;
+    bottom: 50px;
+    background: rgba(255, 255, 255, 0.7);
+    padding: 1em;
+}
+.infobox.takehome>ul {
+    left:0;
+    width: 220px;
+}
+.infobox.takehome li {
+    color: white !important;
+}
+
+.darkened a[href] { color: cyan; }
+
+.slide.plan h2 {
+    font-size: 29px;
+    background: black;
+    color: #FFF;
+}
+.slide h2 { font-size: 29px !important; }
+
+.latex {color: #070;}
+
+.model {float: right;}
+
+.clearright {clear: right;}
+
+.deck-container>.slide:not(.nocurien) {
+    background: 
+        url(media/hcurien.svg) top 5px right 5px / 100px  no-repeat;
+}
+
+em.ico-pencil::before {
+    content: "✎";
+    font-weight: bold;
+    display: inline-block;
+    margin-left: 0.3em;
+    transform: scale(-1.3, 1.3);
+    /*text-shadow: yellow -2px 2px 4px;*/
+}
+em.ico-hugepencil::before {
+    content: "✎";
+    font-weight: bold;
+    display: inline-block;
+    font-size: 200px;
+    transform: scale(-1, -1);
+}
+
+.heightauto svg {height: auto;}
+div.alignbottom {display: flex; align-items: end;}
+
+.denser {font-size: 23px;}
+
+
+.deck-container.black-bg { background: black !important; }
+
+.fancy-slide h2, .fancy-slide ul {
+   color: white;
+}
+.fancy-slide ul {
+   padding: 0.5em; background: rgba(0,0,0,0.8);
+   border-radius: 3px;
+   list-style: none !important;
+}
+.fancy-slide.bot ul {
+   position: absolute; left: 20px; bottom: 20px; margin:0;
+}
+.fancy-slide.top ul {
+   position: absolute; right: 20px; top: 20px; margin:0;
+}
+
+.plan h2 span { font-size: 80%; }
+/*.plan ul { font-size: 200%; }*/
+
+.tunedel del {position: relative; text-decoration: none;}
+.tunedel del::after { content:'' ; position:absolute; top: 60%; left: 0; right:0; border-bottom: 3px solid #F44; transform: rotate(-10deg);}
+.tunedel sup {color: #F44;}
+
+          .FS {
+              position: fixed !important;
+              left:0; width:100% !important;
+              top:0; height:100% !important;
+              background: white;
+              z-index: 1; /* in front of katex equations */
+          }
+          .FS svg {
+          }
+          
+
+
+.captain {font-size: 80%;}
+
+        </style>
+
+        <script src="deck-packed.js"></script>
+        <!--script src="extensions/slides.js"></script-->
+        <script>
+var cssAndJs = ["light-red-dense.css"]; // include the theme (can add any css or js to the list)
+var options = {
+//fitMarginY: 10, ////////////
+AFTERINIT: function() {
+    $(".hasSVG, .hasFS").each(function(i, e) {
+        $(e).click(function() {
+            $(e).toggleClass('FS');
+        });
+    });
+    // blank slide with key '²'
+    $("body").keypress(function(event){
+        if ( event.which == 36 ) {
+            $("body").toggleClass("blanked");
+        }
+    });
+},
+AFTERSMARTDOWN: function(){
+$(".deck-container>.libyli li:not(li li):not(.notslide)").addClass("slide");
+    $("li.libyli>ul>li:not(.notslide)").addClass("slide");
+    $("p>div.model, .unwrap").unwrap();
+}};
+includedeck(cssAndJs, options);
+        </script>
+    </head>
+
+<body>
+
+<div class="deck-container">
+
+    <div class="deck-loading-splash" style="background: black; color: chartreuse;"><span class="vcenter" style="font-size: 30px; font-family: Arial; ">Please wait, while our marmots are preparing the hot chocolate…</span></div>
+
+<section class="smart">
+
+
+## <span class="var-title-br"></span> {image-full top-left darkened /black-bg /no-status /first-slide title-slide fancy-slide bot}
+<div class="img" style="background-image: url('cc/goosenecks.jpg')" data-scale=""></div>
+
+- <span class="var-author"></span>
+- <span class="var-date"></span>
+- <span class="var-affiliation-br"></span>
+- 5 points {notes}
+  - who
+  - worked on unsup learning for 5-6 y
+  - you'll get an overview of Graphical models vs NN, for unsupervised
+  - you'll get a taste of interesting recent works
+  - NIPS 2016 last week
+
+<img class="unwrap" src="media/hcurien.svg" style="background: white; padding: 5px; border-radius: 5px; position: absolute; right: 5px; bottom: 5px; width: 200px; left:auto; top:auto; min-height:auto;"/>
+
+
+
+
+<!-- .................................................. -->
+## Disclaimer {infobox image-full top-right darkened /black-bg /no-status}
+
+<div class="img" style="background-image: url('cc/animal-signs.jpg')" data-attribution="https://www.flickr.com/photos/chrisfithall/14664168646/sizes/l" data-attribution-content="CC by seefit (Flickr)" data-scale=""></div>
+
+- Some notations are atypical. // due to the mix of domains
+- I will, almost surely, skip sections.
+- Don't hesitate to ask questions.
+
+<!-- .................................................. -->
+<!-- .................................................. -->
+## <span class="var-title">TITLE</span> {#plan plan overview /with-ujm}
+- Unsupervised Representation Learning {intro}
+- Notations and problem formulation {setup}
+- Probabilistic generative (graphical) models {probmod}
+- Auto-encoders {autoenc}
+- Generative Adversarial Networks {gan}
+  - adversarial examples and training
+  - GANs
+- Focus on … {focuses}
+  - optimization {focus optim}
+  - space and time convolutions {focus conv}
+  - *depth {focus depth}*, *breadth/width {focus width}*
+  - semantics {focus semantics}
+  - sequential/temporal aspects {focus temporal}
+  - recent GAN[s](#recentgans) {focus recentgans}
+- Wrap up {conclusion}
+
+
+# @copy:#plan: %+class:highlight: .intro
+<!-- ..................................................
+## Representation Learning at Hubert Curien // supervised at Data Intelligence, mostly equivalent to learning
+@svg: repr/representation-di.svg 800 500
+- @anim: #tasks |#data-low |#data-mid |#data-high |#methods-title |#methods-mining |#methods-metric |#methods-local |#methods-grammar |#methods-deep
+-->
+
+## Unsupervised (Representation) Learning
+- No labels available
+- Learning intermediate features or representations
+- Task agnostic
+- Related to (data) density estimation
+- Related to compression
+<!--
+- n. visual examples mostly
+- n. general principle
+-->
+
+## Example: motif mining in videos / temporal data
+@svg: motif-mining/motif-mining-task.svg 750 400
+
+- @anim: #layer1 + -#init | #layer2 | #layer3 | #layer7 | #layer4 | #layer6 | #layer5
+- Key points: structure? compression? density estimation? {slide} // st {hard, related, that I know} well-enough
+- {notes}
+  - n. relation to compression, ...
+  - n. notion of need to have a some structure/assumptions/priors
+  - n. structured data probability density estimation
+  - n. something that is {hard, related, that I know} well-enough
+
+
+
+# @copy:#plan: %+class:highlight: .setup
+<!-- .................................................. -->
+# Notations and problem formulation {#setup}
+
+## Notations and Problem Formulation
+- Notations
+  - $x$ : data (observations)
+  - $y$ : value to predict (for supervised cases)
+  - $z$ : unknown, unobserved latent information
+  - $\theta$ (or $W$) : model parameters // will come back on the differences z vs θ
+- Unsupervised learning
+  - only $x$ is given
+  - need to find the parameters ($\theta$, $W$)
+  - may want to further infer the latent variables ($z$)
+
+
+
+# @copy:#plan: %+class:highlight: .probmod
+<!-- .................................................. -->
+# Probabilistic (graphical) models {#probmod}
+
+## Generative Model, Parameters, Latent Vars…
+- Observations / Data
+
+<img class="floatright first" src="gmm2d-re/difficult-original.png" width="400px"/>
+<img class="floatright" src="gmm2d-re/difficult-raw.png" width="400px"/>
+
+- Supposition, we have a mixture of 3 gaussians {slide}
+- Challenge {slide}
+  - gaussians have unknown *parameters*
+  - which point belongs to which component is *not observable*
+  - @anim: .first
+
+## Probabilistic Modeling: principle {libyli}
+- Adopting a generative approach
+  - think about how the world generated the data
+  - describe it in a “generative model”
+- Formalize your assumptions about the observations (data)
+  - choose/design a model
+  - a model formulates how *some unknown variables* that are “responsible” for the *observations* (data)
+  - set some priors on the unknown variables
+- Naming convention: different types of unknowns
+  - parameters: unknown global parameters of the model
+  - latent variables: unknown observation-specific variables // usually unknown
+- With a mixture of Gaussians
+  - parameters: mean and covariances (and weight) of all Gaussians
+  - latent variables: which Gaussian each data points comes from
+
+## Probabilistic Model Learning {libyli}
+- The model is generative
+  - describes how the data ($x$) gets generated
+  - “forward model”
+  - the probability of the observations: $p(x | \theta)$
+- Finding the unknowns (parameters, latent var.) is challenging
+  - reversing the generative process
+  - finding (or maximizing) $p(\theta | x)$ or $p(\theta, z | x)$ or $p(z | x, \theta)$
+  - high dimensional parameter/latent spaces
+  - highly non-convex functions
+
+## M1 − PCA: intuition
+@svg: media/wikipedia-pca.svg 800 500
+
+- @anim: #patch_3 | #patch_4
+
+## M1: PCA
+@svg: media/wikipedia-pca.svg 200 200 {model}
+
+@svg: graphs/theta-x.svg 100 250 {model m11 clearright}
+
+@svg: graphs/x-f-theta.svg 100 250 {model minv}
+
+// @svg: media/factor.svg 40 300 {model m12}
+
+
+- Principle Component Analysis (eigen-*)
+  - dimensionality reduction
+  - capture the maximum amount of data variance
+- PCA probabilistic view {libyli}
+  - observations come from a single low-dimensional gaussian distribution
+  - ... and are transformed with a linear transformation (rotation + scale),
+  - ... and have added noise noisy
+- @anim: .m11
+- Over-generic graphical representation {slide}
+  - $\theta$ is linear transformation
+  - data points $x$ depend on $\theta$
+  - no *explicit* latent variables *{ico-pencil}*
+- @anim: .minv
+- Inference problem: $f$ {slide}
+  - dedicated algorithms <br/>(covariance matrix eigenvalues, iterative methods, …)
+
+
+## M2 − Topic Modeling: matrix factorization
+
+<img class="floatright hasFS" width="200" src="media/IntroToLDA.png"/>
+
+
+- <b>P</b>robabilistic <b>L</b>atent <b>S</b>emantic <b>A</b>nalysis (PLSA)
+  - matrix decomposition {step2}
+  - non-negative, normalized {step2}
+  - probabilistic formulation {step2}
+      - $p(w|d) = \sum_z p(w|z) \times p(z|d)$ {step2}
+      - or $ x^i = \theta^T \cdot z^i $ (for a document $i$) {step3}
+- @anim: .svg1 | #documents | #topics
+- @anim: .step2 | .step3
+
+@svg: media/matrix-decomposition.svg 700 200 {svg1}
+
+## M2: Topic Models {libyli} // our notation in this pres is highly confusion with standards of this domain
+
+@svg: graphs/theta-x.svg 50 200 {model m21}
+
+@svg: graphs/thetaz-x.svg 130 200 {model m22 clearright}
+
+@svg: graphs/x-f-thetaz.svg 130 200 {model m23}
+
+- LDA, topic models […](file:///home/twilight/doc/PublicationsAndPresentations/2012-cpms/day-11/cpms-lecture-11-topic-models.html#slide-4)
+  - Latent Dirichlet Allocation
+  - mixture of discrete distributions (categorical/multinomial)
+- Bayesian formulation of // won't go into details about bayesian
+  - LSA, LSI (Latent Semantic Indexing) // we don't distinguish pLSA/LDA here
+- Probabilistic formulation of
+  - NMF (non-negative matrix factorization)
+- @anim: .m21
+- $x^i = \theta^T \cdot z^i$ (for a document $i$) *{ico-pencil}*
+- @anim: .m22 | .m23
+- Learning/Inference, $f$
+  - Gibbs sampling
+  - EM: expectation maximization
+  - variational inference
+
+
+
+
+
+
+
+
+
+
+
+# @copy:#plan: %+class:highlight: .autoenc
+<!-- .................................................. -->
+# Auto-encoders <br/><span style="font-size: 50%">(with a classical NN before)</span> {autoenc}
+
+## Feed-forward Neural Networks (supervised) {libyli}
+@svg: graphs/ffnet.svg 120 400 {model}
+
+- Supervised learning (regression, classification, …)
+  - the $x$ are given
+  - the corresponding labels $y$ are given
+- Building blocks of “neural nets”
+  - a neuron computes a weighted sum of its inputs
+  - the sum is followed by an “activation” $\sigma$
+  - weights are learned ($W$)
+  - $f^o(x^i, W) = \sigma\left( \sum_d W_{o,d} \times x^i_d \right) = \sigma\left( W_{o,.} ^T \cdot x^i\right)$
+- Define a network architecture (class of functions)
+  - number and dimension of layers
+  - activation functions (sigmoid, tanh, ReLU, …)
+  - … actually any composition of differentiable functions
+- Learning with stochastic gradient descent (SGD) and variants
+
+## M3: Autoencoders {libyli}
+@svg: graphs/autoenc.svg 120 500 {model m31}
+
+- Idea: use a feed-forward approach
+  - … for unsupervised learning (no labels)
+  - to learn a compact data representation
+- Principle *{ico-pencil}*
+  - try to predict the input form the input
+  - have a latent **bottleneck**: limited model capacity
+  - **encoder** $f$: from the input $x$ to the latent $z$
+  - **decoder** $g$: from the latent $z$ to the input $x$
+- @anim: .m31, .cup
+- Learning principles of $f$ and $g$
+  - mean square reconstruction error: $\left\| g(f(x)) - x \right\|^2$
+  - SGD (like any neural net)
+  - sparsifying regularization: sparse activations ($z$, $f(x)$)
+  - add noise to the input (denoizing autoencoders)
+
+<img class="cup" src="cc/cup-and-string.png" />
+
+n. RBM ? {notes}
+n. VAE ? {notes}
+
+
+# @copy:#plan: %+class:highlight: .gan
+<!-- .................................................. -->
+# Generative Adversarial Networks {#gan}
+
+
+## Adversarial Examples (Goodfellow, 2014) {libyli} // ostrich
+
+<img class="hasFS" width="auto" height="400" src="media/adversarial-panda.jpg" />
+
+- @anim: %attr:.hasFS:height:200
+- In high dimensional spaces
+  - a huge part of the input space is never seen / irrelevant
+  - models are easy to fool
+  - models are wrongly calibrated (bad confidence estimation)
+- Goal
+  - build machine learning methods robust to adversarial examples
+  - (relation to anomaly detection)
+- Idea of adversarial training
+  - generate adversarial examples automatically
+  - train also using these examples
+
+
+## GAN Intuition {infobox image-full top-left darkened /black-bg /no-status}
+<div class="img" style="background-image: url('cc/euros.jpg')" data-attribution="https://www.flickr.com/photos/71963413@N06/8727321767/sizes/l/" data-attribution-content="CC by GorissenM (Flickr)" data-scale=""></div>
+
+- Ongoing struggle between two players:
+  - one that makes fake samples,
+  - one that tries to detect them.
+
+## M4: Generative Adversarial Networks {libyli}
+
+@svg: graphs/ganright.svg 90 500 {model heightauto}
+
+@svg: graphs/ganleft.svg 90 482 {model heightauto alignbottom}
+
+- Principle: train two networks
+  - $G$: to generate samples from noise
+  - $D$: to discriminate between true and fake samples
+  - NB: $G$ will try to fool $D$
+- Elements *{ico-pencil}*
+  - $x$: a training sample (real)
+  - $z$: a random point in a latent space
+  - $\tilde{x}{}$: a generated sample (fake)
+  - $y$: a binary “fake” ($0$) or “real” ($1$) value
+- GAN is a minimax game
+  - $\min_G \max_D V(D, G)$
+  - $V(D, G) = \; \mathbb{E}_{x} [log( D(x) ) ] + \mathbb{E}_z [log(1 - D(G(z))) ]$
+
+## GAN Target {libyli}
+
+@svg: graphs/ganright.svg 90 500 {model heightauto}
+
+- GAN optimization: $\min_G \max_D V(D, G)$
+  - $V(D, G) = \; \mathbb{E}_{x} [log( D(x) ) ] + \mathbb{E}_z [log(1 - D(G(z))) ]$
+  - find a $G$ that minimizes the accuracy of the **best** $D$
+- Equilibrium and best strategies
+  - $D$ ideally computes $D(x) = \frac{p_{data}(x)}{p_{data}(x) + p_{gen}(x)}$
+  - thus $G$ should ideally fit $p_{data}(x)$
+  - … $G$ samples for $p_{data}(x)$
+- Optimization in practice
+  - alternate optimization of $G$ and $D$
+  - warning: $\min \max$ is not $\max \min$
+  - saddle point finding (hot topic)
+
+## Example of GAN-generated Digits
+- DCGAN (Deep Convolutional GAN), Radford et al., 2015/2016
+
+<img src="media/mnist_collage.png" style="filter: inverse;" class="slide hasFS" width="800"/>
+
+## Example of DCGAN-generated Faces
+
+@svg: media/dcgan-faces.svg 800 500
+
+@anim: div.hasSVG | %viewbox:#zzz | %viewbox:#zzz2
+
+# @copy:#plan: %+class:highlight: .focuses, .focus.optim
+<!-- .................................................. -->
+
+## How is all This Optimized {libyli}
+- Deep models (composition of differentiable function)
+  - … using “back-propagation” (chain rule)
+  - (S)GD / SGD with momentum
+  - SGD with adaptation: RMSProp, ADAM, …
+  - batch normalization trick
+  - link: other tricks for [learning GANs](https://github.com/soumith/ganhacks)
+  - are local minima any good?
+  - link: [which optimizer?](http://sebastianruder.com/optimizing-gradient-descent/index.html#whichoptimizertouse)
+- Probabilistic models *{ico-pencil}*
+  - Gibbs sampling
+  - Expectation Maximization
+  - Variational Inference
+  - Black-box variational inference (e.g., [Edward](https://github.com/blei-lab/edward))
+- Probabilistic models, likelihood-free
+  - empirical likelihood (Owen, 1988)
+  - mean-shift estimation (Fukunaga, 1975)
+  - method-of-moments (Hall, 2005)
+  - Approximate Bayesian computation, ABC (Marin et al, 2012)
+
+## An overview of gradient descent optimization algorithms {no-print}
+<img src="media/contours_evaluation_optimizers.gif"/>
+
+[which optimizer to use?](http://sebastianruder.com/optimizing-gradient-descent/index.html#whichoptimizertouse)
+
+## An overview of gradient descent optimization algorithms {no-print}
+<img src="media/saddle_point_evaluation_optimizers.gif"/>
+
+[which optimizer to use?](http://sebastianruder.com/optimizing-gradient-descent/index.html#whichoptimizertouse)
+
+# @copy:#plan: %+class:highlight: .focuses, .focus.conv
+<!-- .................................................. -->
+## Convolution Models 
+- Extensions of topic models
+  - replace topic with motifs (with temporal structure)
+  - PLSM, HDLSM (Emonet et al., 2014)
+- Convolutional Neural Networks
+  - most of Christian's talk (ConvNets)
+  - pixelRNN, …
+
+# @copy:#plan: %+class:highlight: .focuses, .focus.depth
+<!-- .................................................. -->
+## Depth in Unsupervised Learning {libyli}
+- Neural Network depth = Hierarchical probabilistic models
+- Neural Networks
+  - “deep learning”
+  - adding layers
+  - handling depth with ReLU
+  - handling depth with “ResNets”, Residual Networks (Deep residual learning for image recognition, He et al. 2015)
+- Hierarchical probabilistic models
+  - Topic Models (LDA, Blei, Ng, Jordan, 2003)
+  - Deep exponential families (Ranganath et al., 2015) *{ico-pencil}* // blei AISTATS
+  - Deep Gaussian Processes (Damianou, Lawrence, 2013) // AISTATS
+
+@svg: media/deepexpfam.svg 100 100 {model}
+
+
+# @copy:#plan: %+class:highlight: .focuses, .focus.width
+<!-- .................................................. -->
+
+## Width in Unsupervised Learning {libyli}
+- Width
+  - Topic model: number of topics
+  - Autoencoder: number of neurons in the hidden layer
+  - GAN: size of $z$
+- Non-parametric approaches, HDP, HDLSM (Emonet et al., 2014)
+- Gaussian process as an infinitely wide NN layer<br/> (Damianou, Lawrence, 2013)
+  - universal function approximator
+- Autoencoders with group sparsity (Bascol et al., 2016)
+  - allow for many hidden units
+  - penalize the use of too many of them 
+
+# @copy:#plan: %+class:highlight: .focuses, .focus.semantics
+<!-- .................................................. -->
+
+## Semantics in Unsupervised Learning {libyli}
+- Probabilistic models
+  - inference is difficult
+  - consider the “explains away” principle
+  - lead to better interpretability (meaningful $z$) // rain, sun allergy, umbrella
+- Simpler feed-forward model
+  - independent processing
+  - inhibitory feedback is difficult
+- Bascol et al, 2016 <a target="_blank" href="../../../dl/fil_masse_data.pptx">…</a>
+  - group-sparsity on filters
+  - local activation inhibition
+  - global activation entropy maximization
+  - AdaReLU: activation function that zeroes low-energy points
+
+<!--
+- n. PLSM, HDLSM, ... in the structure and in the explains away
+- n. explain the intuition of explains-away (avec le parapluie + pluie + allergie au soleil ?) (ou sol mouillé + parapluie)
+-->
+
+# @copy:#plan: %+class:highlight: .focuses, .focus.temporal
+<!-- .................................................. -->
+
+## Sequential and Temporal Modeling
+- cf. Christian Wolf's talk
+- HMM, CRF =?= RNN
+- LSTM =?= HSMM
+
+*{ico-hugepencil}*
+
+# @copy:#plan: %+class:highlight: .focuses, .focus.recentgans
+<!-- .................................................. -->
+
+# Recent GAN Works {#recentgans}
+
+## M5: BiGAN, ALI (2016)
+
+@svg: graphs/biganright.svg 200 500 {model}
+
+@svg: graphs/biganleft.svg 200 500 {model}
+
+*{ico-hugepencil}*
+
+## M6: InfoGAN (2016) {libyli}
+
+@svg: graphs/infoganright.svg 250 480 {model}
+
+// @svg: graphs/ganleft.svg 93 480 {model heightauto alignbottom}
+
+- GAN noise ($z$)
+  - is unstructured
+  - can be partly ignored by $G$
+- InfoGAN idea and principle
+  - part of the noise is a code $c$
+  - enforce high mutual information <br/> between $c$ and $\tilde{x}{}$
+  - in practice, predict $c$ from $\tilde{x}{}$
+  - use a coder $Q$
+- @anim: .model
+- Structure in the code *{ico-pencil}*
+  - Cartesian product of anything
+  - (categorical, continuous, ...)
+- $\min_{G,Q} \max_D V_{InfoGAN}(D, G, Q) = V_{InfoGAN}(D, G) - \lambda L_I(G, Q) $ {denser}
+
+
+## InfoGAN: some results
+
+<img src="media/infogans.jpg" class="slide hasFS" width="800"/>
+
+## *GAN as a Modeling Tool {libyli}
+- Conditional GANs and variants (2016)
+  - the GAN process is conditioned on some data
+  - e.g., image generation condition on a semantic mask
+  - e.g., image conditioned on a text sentence
+  - e.g., audio conditioned on a text sentence
+  - e.g., image conditioned on class and keypoints
+  - …
+- Very complex (and operational) setups
+
+
+## Ex: Learning What and Where to Draw
+
+<img src="media/whatwheredraw.jpg" class="hasFS" width="800"/>
+
+<img src="media/whatwheredraw-landmarks.jpg" class="slide hasFS" width="800"/>
+
+
+## Ex: Learning What and Where to Draw
+
+- Scott Reed et al.
+<img src="media/whatwheredraw-birds.jpg" class="hasFS" width="800"/>
+
+
+# @copy:#plan: %+class:highlight: .conclusion
+<!-- .................................................. -->
+
+
+<!--
+# mm
+- intro
+- nb
+    - général, mais plus simple à voir en linéaire simple couche,
+    - mais la plupart de mes travaux en convolutionnel
+    - mais aussi des versions multicouches
+    - -> rester dans le cas général mais utiliser une fonction linéaire si il faut illustrer
+- unsupervised: topic models, ..., bigan etc
+    - each model with its formulation and how it gets optimized
+- focus on: convolution aspects
+    - convnet
+    - plsm etc
+- focus on: depth
+    - stacked plsm etc
+- focus on: width
+    - hdp, hdlsm
+    - gaussian process as an infinite layer?
+- focus on: semantics
+    - by construction in plsm, but actually due to the structure
+    - so also in the structure in CNN
+- focus on: time aspects
+    - rnn, lstm
+- focus on: recent GANS
+-->
+
+
+
+
+## Take-home Message {infobox takehome image-fit top-left darkened /black-bg /no-status /fancy-slide}
+<div class="img" style="background-image: url('media/take-home-cats.jpg')" data-attribution="https://www.flickr.com/photos/sometoast/4192895126/sizes/l" data-attribution-content="CC by someToast (Flickr)" data-scale=""></div>
+
+- Return of the generative approaches.
+- Two ways of estimating densities
+  - generative models,
+  - generative networks.
+- The golden age of Variational Inference. // (and black-box VI)
+- The golden age of SGD. // is the Gibbs sampling of continuous spaces
+- Saddle points! // active and will progress a lot
+
+
+## Thank You!<br/><br/>Questions? {infobox image-fit top-left darkened /black-bg /fancy-slide /no-status deck-status-fake-end nocurien}
+
+- <span class="var-author"></span>
+- <span class="var-date"></span>
+- <span class="var-affiliation-br"></span>
+- twitter − [@remiemonet](https://twitter.com/remiemonet)
+- twitter − [@DataIntelGroup](https://twitter.com/DataIntelGroup)
+
+<img class="unwrap" src="media/hcurien.svg" style="background: white; padding: 5px; border-radius: 5px; position: absolute; right: 10px; top: 5px; width: 200px; left:auto; top:auto; min-height:auto; z-index: 1"/>
+
+<div class="img" style="background-image: url('cc/sun-rail.jpg')" data-attribution="https://www.flickr.com/photos/shutterrunner/5108117514/sizes/l" data-attribution-content="CC by ShutterRunner (Flickr)" data-scale=""></div>
+
+
+
+# Attributions
+
+## au_ears {image-full bottom-left darkened /black-bg /no-status}
+<div class="img" style="background-image: url('cc/goosenecks.jpg')" data-attribution="https://www.flickr.com/photos/au_ears/24532520960/sizes/k/" data-attribution-content="CC by au_ears (Flickr)" data-scale=""></div>
+
+## seefit {image-full bottom-left darkened /black-bg /no-status}
+<div class="img" style="background-image: url('cc/animal-signs.jpg')" data-attribution="https://www.flickr.com/photos/chrisfithall/14664168646/sizes/l" data-attribution-content="CC by seefit (Flickr)" data-scale=""></div>
+
+## govan riverside {image-fit bottom-left darkened /black-bg /no-status}
+<div class="img" style="background-image: url('cc/cup-and-string.png')" data-attribution="https://www.flickr.com/photos/govanriverside/6231627990/sizes/o/" data-attribution-content="CC by govan riverside (Flickr)" data-scale=""></div>
+
+## GorissenM {image-full bottom-left darkened /black-bg /no-status}
+<div class="img" style="background-image: url('cc/euros.jpg')" data-attribution="https://www.flickr.com/photos/71963413@N06/8727321767/sizes/l/" data-attribution-content="CC by GorissenM (Flickr)" data-scale=""></div>
+
+## someToast {image-fit bottom-left darkened /black-bg /no-status}
+<div class="img" style="background-image: url('media/take-home-cats.jpg')" data-attribution="https://www.flickr.com/photos/sometoast/4192895126/sizes/l" data-attribution-content="CC by someToast (Flickr)" data-scale=""></div>
+
+## ShutterRunner {image-full bottom-left darkened /black-bg /no-status}
+<div class="img" style="background-image: url('cc/sun-rail.jpg')" data-attribution="https://www.flickr.com/photos/shutterrunner/5108117514/sizes/l" data-attribution-content="CC by ShutterRunner (Flickr)" data-scale=""></div>
+
+## END {no-print}
+
+</section>
+
+
+    <p class="deck-status" data-progress-size=": spe.top(10, 585) ; bottom: slide.top" style="z-index: 0; color: #339; background: #EEE;"> <span class="deck-status-current"></span> / <span class="deck-status-total"></span> − <span class="var-author">will be replaced by the author</span> − <span class="var-title">will be replaced by the title</span></p>
+
+    <a data-progress-size=": spe.top(15, 555); height: 45*designRatio; left: slide.right - 70*designRatio; width: 70*designRatio" class="ccby" href="http://en.wikipedia.org/wiki/Creative_Commons_license" title="This work is under CC-BY licence." target="_blank"></a>
+
+    <a class="ujm" data-progress-size=": spe.top(15, 515); height: 65*designRatio; left: slide.left; width: 130*designRatio" target="_blank"></a> <!-- shown only if with-ujm is set on the container -->
+    <a class="hcurien" data-progress-size=": spe.top(15, 470); height: 105*designRatio; left: slide.right - 160*designRatio; width: 150*designRatio" target="_blank"></a> <!-- shown only if with-ujm is set on the container -->
+
+</div>
+</body>
+</html>
